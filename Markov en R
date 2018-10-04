@@ -1,0 +1,194 @@
+
+#install.packages("readxl")
+#install.packages("dplyr")
+#install.packages("data.table")
+
+library(readxl)
+library(dplyr)
+library(data.table)
+
+# Ruta de la carpeta donde esta guardado el archivo de pruebas de estrés desde donde se cargaran las PD y las matrices mensuales. Recordar modificar las "\" por "/", y siempre poner la ruta entre '' y con una barra (/) final. 
+
+CARPETA_INPUT <- 'C:/…/INPUT/'
+CARPETA_OUTPUT <- 'C:/…//OUTPUT/'
+ARCHIVO_OUTPUT <- 'Matriz_Transicion.csv'
+
+##Levantamos los archivos anuales
+ 
+Primeraño <- 2014
+Ultimoaño <- 2017
+
+BASE_FINAL <- vector()
+
+for (t in Primeraño:Ultimoaño){
+    
+    AÑO <- paste0(t)
+    Nombre_archivo <- paste0("cartera_", AÑO,".csv")
+
+if (file.exists(paste0(CARPETA_INPUT, Nombre_archivo)) == T){
+  
+  BASE_AÑO <- read.csv(file = paste0(CARPETA_INPUT, Nombre_archivo), sep = ",", colClasses = "character") %>% select(1, 2, 10, 8, 4, 6, 7)
+  
+  BASE_FINAL <- rbind(BASE_FINAL, BASE_AÑO) 
+}
+    print(AÑO)
+}
+
+###Comenzamos a armar el proceso de matrices de transición.
+
+BASE_FINAL$Year <- as.numeric(substr(BASE_FINAL$CORTE,1,4))
+
+BASE_FINAL$Month <- as.numeric(substr(BASE_FINAL$CORTE,6,7))
+BASE_FINAL$Month <- ifelse(BASE_FINAL$Month > 9, paste0(BASE_FINAL$Month), paste0(0, BASE_FINAL$Month))
+
+BASE_FINAL$YearMonth <- paste0(BASE_FINAL$Year, BASE_FINAL$Month)
+                                                       
+BASE_FINAL$CORTE <- NULL
+
+### Creamos Columna con el Periodo y Periodo Siguiente
+
+BASE_FINAL$Month <- as.numeric(BASE_FINAL$Month)
+
+BASE_FINAL$Periodo <- ((BASE_FINAL$Year)-Primeraño)*12+(BASE_FINAL$Month)
+
+BASE_FINAL$PeriodoSig <- BASE_FINAL$Periodo +1
+
+CantidadPer <- max(BASE_FINAL$PeriodoSig)
+
+### Definimos la variable "CAPITAL", como numerico e indicamos que si hay vacios en CAPITAL Y VALOR_GARANTIA les ponga cero
+
+BASE_FINAL$CAPITAL<- as.numeric(BASE_FINAL$CAPITAL)
+BASE_FINAL$CAPITAL[is.na(BASE_FINAL$CAPITAL)]<-0
+
+BASE_FINAL$VALOR_GARANTIA <- as.numeric(BASE_FINAL$VALOR_GARANTIA)
+BASE_FINAL$VALOR_GARANTIA[is.na(BASE_FINAL$VALOR_GARANTIA)] <- 0
+
+BASE_FINAL <- BASE_FINAL[BASE_FINAL$CLASIFICACION_SIB != "",]
+
+### Creamos nuevas tablas segun la CARTERA
+
+Comercial <- BASE_FINAL[BASE_FINAL$CARTERA =="COMERCIAL",]
+Hipotecario <- BASE_FINAL[BASE_FINAL$CARTERA =="HIPOTECARIO",]
+Consumo <- BASE_FINAL[BASE_FINAL$CARTERA=="CONSUMO",]
+
+Tarjetas <- Consumo[Consumo$TIPO_CREDITO=="TC",]
+Consumo <- Consumo[Consumo$TIPO_CREDITO=="PR",]
+
+##Filtro las tarjetas desde el 2014 en adelante.
+
+Tarjetas = as.data.frame(Tarjetas[Tarjetas$Year > 2013,])
+
+### Creamos nuevas tablas para identificar con (1) y sin (0) garantia
+
+Comercial$GARANTIA <- ifelse(Comercial$VALOR_GARANTIA > 0, "1", "0")
+Comercial_Con <- Comercial[Comercial$GARANTIA == "1",]
+Comercial_Sin <- Comercial[Comercial$GARANTIA == "0",]
+
+Consumo$GARANTIA <- ifelse(Consumo$VALOR_GARANTIA > 0, "1", "0")
+Consumo_Con <- Consumo[Consumo$VALOR_GARANTIA != 0,]
+Consumo_Sin <- Consumo[Consumo$VALOR_GARANTIA == 0,]
+
+### Duplicamos las tablas para realizar la union
+
+Comercial_Con2 <- Comercial_Con
+Comercial_Sin2 <- Comercial_Sin
+Consumo_Con2 <- Consumo_Con
+Consumo_Sin2 <- Consumo_Sin
+Tarjetas2 <- Tarjetas
+Hipotecario2 <- Hipotecario
+
+### Cambiamos el nombre de la columna Capital y Clasificacion en las tablas duplicadas
+
+names(Comercial_Con)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Comercial_Con2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+names(Comercial_Sin)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Comercial_Sin2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+names(Consumo_Con)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Consumo_Con2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+names(Consumo_Sin)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Consumo_Sin2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+names(Tarjetas)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Tarjetas2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+names(Hipotecario)[c(4,5)] <- c("CLASIFICACIONINICIAL", "CAPITALINICIAL")
+names(Hipotecario2)[c(4,5)] <- c("CLASIFICACIONFINAL", "CAPITALFINAL")
+
+### Eliminamos de las primeras tablas los registros con CAPITAL igual a 0
+
+Comercial_Con <- Comercial_Con[Comercial_Con$CAPITALINICIAL!=0,]
+Comercial_Sin <- Comercial_Sin[Comercial_Sin$CAPITALINICIAL!=0,]
+Consumo_Con <- Consumo_Con[Consumo_Con$CAPITALINICIAL!=0,]
+Consumo_Sin <- Consumo_Sin[Consumo_Sin$CAPITALINICIAL!=0,]
+Tarjetas <- Tarjetas[Tarjetas$CAPITALINICIAL!=0,]
+Consumo_Sin <- Consumo_Sin[Consumo_Sin$CAPITALINICIAL!=0,]
+
+
+#Unimos segun "IDCREDITO", y que el periodoSig de la primera tabla es el Periodo de la primera
+
+HipotecarioT <- as.data.frame(left_join(Hipotecario[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Hipotecario2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo")))  
+
+TarjetasT <- as.data.frame(left_join(Tarjetas[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Tarjetas2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo")))  
+
+Consumo_ConT <- as.data.frame(left_join(Consumo_Con[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Consumo_Con2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo")))  
+
+Consumo_SinT <- as.data.frame(left_join(Consumo_Sin[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Consumo_Sin2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo")))  
+
+Comercial_ConT <- as.data.frame(left_join(Comercial_Con[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Comercial_Con2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo")))  
+
+Comercial_SinT <- as.data.frame(left_join(Comercial_Sin[,c("YearMonth", "IDCREDITO", "CLASIFICACIONINICIAL", "CAPITALINICIAL",  "PeriodoSig")], Comercial_Sin2[, c("IDCREDITO", "CLASIFICACIONFINAL", "CAPITALFINAL", "Periodo")],by= c("IDCREDITO", "PeriodoSig"="Periodo"))) 
+
+#rm(Comercial_Con,Comercial_Con2, Comercial_Sin, Comercial_Sin2, Consumo_Con, Consumo_Con2, Consumo_Sin, Consumo_Sin2, Hipotecario, Hipotecario2, Tarjetas, Tarjetas2)
+
+### Eliminamos registros del ultimo mes, ya que el mismo no tiene un mes siguiente con el que machear
+
+HipotecarioT <- HipotecarioT[HipotecarioT$PeriodoSig!=CantidadPer,]
+TarjetasT <- TarjetasT[TarjetasT$PeriodoSig!=CantidadPer,]
+Comercial_ConT <- Comercial_ConT[Comercial_ConT$PeriodoSig!=CantidadPer,]
+Comercial_SinT <- Comercial_SinT[Comercial_SinT$PeriodoSig!=CantidadPer,]
+Consumo_ConT <- Consumo_ConT[Consumo_ConT$PeriodoSig!=CantidadPer,]
+Consumo_SinT <- Consumo_SinT[Consumo_SinT$PeriodoSig!=CantidadPer,]
+
+### Agrupar
+
+HipotecarioT <- as.data.frame(HipotecarioT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+TarjetasT <- as.data.frame(TarjetasT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+Comercial_ConT <- as.data.frame(Comercial_ConT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+Comercial_SinT <- as.data.frame(Comercial_SinT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+Consumo_SinT <- as.data.frame(Consumo_SinT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+Consumo_ConT <- as.data.frame(Consumo_ConT %>% group_by(CLASIFICACIONINICIAL,CLASIFICACIONFINAL,YearMonth) %>% 
+  summarise(SaldoInicial=sum(CAPITALINICIAL), SaldoFinal=sum(CAPITALFINAL),Cantidad=n()))
+
+HipotecarioT$Cartera <- "Hipotecario"
+Comercial_SinT$Cartera <- "Comercial_Sin"
+Comercial_ConT$Cartera <- "Comercial_Con"
+Consumo_ConT$Cartera <- "Consumo_Con"
+Consumo_SinT$Cartera <- "Consumo_Sin"
+TarjetasT$Cartera <- "Tarjetas"
+
+CARTERA_TOTAL <- as.data.frame(rbind(Comercial_ConT,Comercial_SinT,Consumo_ConT, Consumo_SinT, HipotecarioT, TarjetasT))
+
+CARTERA_TOTAL$SaldoFinal[is.na(CARTERA_TOTAL$SaldoFinal)] <- 0
+
+CARTERA_TOTAL$Reemplazo <- ifelse(is.na(CARTERA_TOTAL$CLASIFICACIONFINAL),ifelse(  CARTERA_TOTAL$CLASIFICACIONINICIAL == "A" | CARTERA_TOTAL$CLASIFICACIONINICIAL == "B" | CARTERA_TOTAL$CLASIFICACIONINICIAL == "C","A", "CASTIGO" ),CARTERA_TOTAL$CLASIFICACIONFINAL)
+
+CARTERA_TOTAL$Migracion <- paste0(CARTERA_TOTAL$CLASIFICACIONINICIAL, CARTERA_TOTAL$Reemplazo)
+
+CARTERA_TOTAL$Concatenado <- paste0(CARTERA_TOTAL$CLASIFICACIONINICIAL,CARTERA_TOTAL$CLASIFICACIONFINAL)
+
+CARTERA_TOTAL <- CARTERA_TOTAL[,c("Cartera", "YearMonth", "CLASIFICACIONINICIAL", "CLASIFICACIONFINAL", "Concatenado","Migracion","SaldoInicial", "SaldoFinal", "Cantidad")]
+
+write.csv(x=CARTERA_TOTAL, file=paste0(CARPETA_OUTPUT,ARCHIVO_OUTPUT))
