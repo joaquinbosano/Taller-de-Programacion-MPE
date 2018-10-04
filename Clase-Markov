@@ -1,0 +1,103 @@
+import numpy as np
+import pandas as pd
+
+
+
+class Markov_Chain:
+    """Implementacion de una cadena de Markov
+    finita con probabilidades constantes"""
+
+    import numpy as np
+    import pandas as pd
+
+    def __init__(self, estados, transition_probs = None, Base = None):
+
+        if type(estados) is not type(5):
+            print ("El numero de estados debe ser un entero")
+        else:
+            self.estados = estados
+        if transition_probs is not None:
+            self.transition_probs = transition_probs
+        elif Base is not None:
+            self.Base = Base
+            self.transition_probs = generarProbabilidades(self, self.Base)
+        else:
+            print ("Debe especificar las probabilidades de transicion o una base datos con formato valido")
+
+    def generarProbabilidades(self, Base, estados):
+        if type(self.Base) == type("string"):
+            Tabla = pd.read_csv(self.Base)
+            Tabla = Tabla.dropna(axis =1, how = "any")
+            observaciones = Tabla.shape[0]
+            freq = []
+        for col in Tabla:
+            freq = freq.append(Sum(Tabla[col])/observaciones)
+        return freq
+
+
+    def generarMatriz(self, transition_probs):
+        for elem in self.transition_probs:
+            matriz = np.ones(self.estados*self.estados)
+            if type(elem) is type([1,1]):
+                matriz = np.asarray(self.transition_probs).reshape(self.estados, self.estados)
+                return matriz
+
+            elif type (elem) is type(0.5):
+                for number in range(self.estados), cantidad in range(self.estados):
+                    matriz = np.ones(self.estados*self.estados).reshape(self.estados,self.estados)
+                    matriz[number, cantidad] = transition_probs[elem]
+                return matriz
+
+    def state_distribution(self, vector = None, some_dim = None):
+        if some_dim is not 0.5:
+            P = generarMatriz(self.transition_probs)
+            vector = np.dot(P[:,some_dim] , P )
+            return vector
+        elif vector is not None:
+            vector = np.dot(self.vector, P)
+            return vector
+        else:
+            print("Debe especificar una condicion inicial valida, bajo la forma de un vector o de un estado")
+
+    def next_matrix(self, transition_probs):
+        P = generarMatriz(self.transition_probs)
+        next = np.dot(P, P)
+        return next
+
+    def matrizTransicionOrden (self, orde,  matriz= None, transition_probs= None):
+        if orden is int:
+            if orden > 0:
+                if self.matriz is not None:
+                    P = self.matriz
+                    iterador = 0
+                    while iterador < orden:
+                        P = np.dot(P,self.matriz)
+                    return P
+                elif transition_probs is not None:
+                    V = generarMatriz(self.transition_probs)
+                    P = generarMatriz(self.transition_probs)
+                    iterador = 0
+                    while iterador < orden:
+                        P = np.dot(P,V)
+                    return P
+                else:
+                    print ("Debe especificar la matriz de transicion o las probabilidades de transicion")
+            else:
+                print ("Orden debe ser positivo")
+        else:
+            print ("Orden debe ser un numero entero")
+
+
+    def encontrarposicion(lista, valor):
+        i = 0
+        while i< len(self.lista):
+            if self.lista[i] == self.valor:
+                return i
+            i+= 1
+
+    def distribucion_estacionaria(self, transition_probs):
+        P = self.generarMatriz(self.transition_probs)
+        w,v =np.linalg.eig(P.T)
+        pi = v[:, 0].reshape(self.estados,1)
+
+        return pi/sum(pi)
